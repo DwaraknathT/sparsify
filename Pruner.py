@@ -34,13 +34,13 @@ class Pruner:
       self,
       model,
       optimizer,
-      lr_scheduler,
-      inital_sparsity,
-      final_sparsity,
+      inital_sparsity=0,
+      final_sparsity=0.5,
       start_step=0,
       end_step=0.5,
       total_steps=None,
       prune_freq=100,
+      lr_scheduler=None,
       prune_type='weight',
       prune_level='layer',
       ramping=False,
@@ -59,7 +59,7 @@ class Pruner:
     self.prune_level = prune_level
     self.ramping = ramping
     self.ramp_type = ramp_type
-    self.intial_sparsity = inital_sparsity
+    self.initial_sparsity = inital_sparsity
     self.final_sparsity = final_sparsity
     assert (total_steps, not None)
     if self.end_step is float:
@@ -71,7 +71,7 @@ class Pruner:
       if hasattr(layer, 'mask'):
         self.initial_weights.append(layer.weight.data)
         self.initial_masks.append(layer.mask.data)
-    self.step = 0
+    self.global_step = 0
 
   def GlobalPrune(self, model, prune_compute):
     weights = []
@@ -104,20 +104,20 @@ class Pruner:
     return model
 
   def ramp_sparsify(self, model):
-    if self.start_step <= self.step <= self.end_step:
-      if self.step % self.prune_freq == 0:
+    if self.start_step <= self.global_step <= self.end_step:
+      if self.global_step % self.prune_freq == 0:
         if self.ramp_type == 'linear':
           rate_of_increase = (self.final_sparsity - self.initial_sparsity) / (
               self.end_step - self.start_step)
           prune_compute = self.initial_sparsity + rate_of_increase * (
-              self.step - self.start_step)
+              self.global_step - self.start_step)
         else:
           raise NotImplementedError('Ramping type not implemented')
         if self.prune_level == 'global':
           model = self.GlobalPrune(model, prune_compute)
         elif self.prune_level == 'layer':
           model = self.LayerPrune(model, prune_compute)
-    elif self.step == self.end_step:
+    elif self.global_step == self.end_step:
       if self.prune_level == 'global':
         model = self.GlobalPrune(model, self.final_sparsity)
       elif self.prune_level == 'layer':
@@ -126,7 +126,7 @@ class Pruner:
     return model
 
   def sparsify(self, model):
-    if self.step == self.start_step:
+    if self.global_step == self.start_step:
       if self.prune_level == 'global':
         model = self.GlobalPrune(model, self.final_sparsity)
       elif self.prune_level == 'layer':
@@ -140,8 +140,9 @@ class Pruner:
       self.model = self.sparsify(self.model)
 
     self.optimizer.step()
-    self.lr_scheduler.step()
-    self.step += 1
+    if self.lr_scheduler:
+      self.lr_scheduler.step()
+    self.global_step += 1
 
   def mask_sparsity(self):
     sparsities = []
@@ -149,7 +150,7 @@ class Pruner:
       if hasattr(module, 'mask'):
         mask = module.mask.detach().cpu().numpy()
         sparsities.append(round(1. - np.sum(mask) / mask.size, 2))
-    return sparsities
+    print(sparsities)
 
   def reset_masks(self):
     for module in self.model.modules():

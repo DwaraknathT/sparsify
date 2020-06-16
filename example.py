@@ -4,8 +4,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
+from Pruner import Pruner
 
 from layers.layers import MaskedConv, MaskedDense
+
+#hyper params
+batch_size = 128
+epochs = 100
 
 transform = transforms.Compose(
   [transforms.ToTensor(),
@@ -13,16 +18,18 @@ transform = transforms.Compose(
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                          shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Net(nn.Module):
@@ -46,25 +53,30 @@ class Net(nn.Module):
 
 
 net = Net()
+net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+pruner = Pruner(
+  net, optimizer, 0, 0.95, total_steps=len(trainloader), ramping=True)
 
-for epoch in range(2):  # loop over the dataset multiple times
 
+for epoch in range(epochs):  # loop over the dataset multiple times
+  pruner.mask_sparsity()
   running_loss = 0.0
   for i, data in enumerate(trainloader, 0):
     # get the inputs; data is a list of [inputs, labels]
-    inputs, labels = data
+    inputs, labels = data[0].to(device), data[1].to(device)
 
     # zero the parameter gradients
     optimizer.zero_grad()
 
     # forward + backward + optimize
-    outputs = net(inputs)
+    outputs = pruner.model(inputs)
     loss = criterion(outputs, labels)
     loss.backward()
-    optimizer.step()
+    #optimizer.step()
+    pruner.step()
 
     # print statistics
     running_loss += loss.item()
@@ -79,8 +91,8 @@ correct = 0
 total = 0
 with torch.no_grad():
   for data in testloader:
-    images, labels = data
-    outputs = net(images)
+    inputs, labels = data[0].to(device), data[1].to(device)
+    outputs = pruner.model(inputs)
     _, predicted = torch.max(outputs.data, 1)
     total += labels.size(0)
     correct += (predicted == labels).sum().item()
@@ -92,8 +104,8 @@ class_correct = list(0. for i in range(10))
 class_total = list(0. for i in range(10))
 with torch.no_grad():
   for data in testloader:
-    images, labels = data
-    outputs = net(images)
+    inputs, labels = data[0].to(device), data[1].to(device)
+    outputs = pruner.model(inputs)
     _, predicted = torch.max(outputs, 1)
     c = (predicted == labels).squeeze()
     for i in range(4):
