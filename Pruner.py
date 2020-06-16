@@ -157,6 +157,13 @@ class Pruner:
         mask = prune(module.weight, 0, self.prune_type)
         module.mask.data = mask
 
+  def reset_weights(self):
+    count = 0
+    for module in self.model.modules():
+      if hasattr(module, 'mask'):
+        module.weight.data = self.initial_weights[count]
+        count += 1
+
   def mask_check(self):
     all_ones = False
     zeros_and_ones = False
