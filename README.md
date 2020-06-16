@@ -2,14 +2,14 @@
 A simple, flexible, no-nonsense neural network sparsification library for PyTorch
 
 ## What ? 
-Sparsify is a pruning library that was created to make research in the field of pruning, model compression, 
-sparse neural networks easy. You can take you pytorch model and replace conv, dense layers with 
+Sparsify is a pruning library that aims to make research in the field of pruning, model compression, 
+sparse neural networks easy. You can take your PyTorch model and replace conv, dense layers with 
 masked layers. The pruner class has everything you need for weight pruning, but can easily be 
 extended for other types of importance measures. 
 
 ## Currently supported: 
 * Weight and unit pruning
-    *  Global and per-layer pruning 
+    * Global and per-layer pruning 
     * One time and Ramping pruning 
     * Weight, mask reset
     
