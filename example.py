@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from models.resnet import resnet20
 import torchvision
 import torchvision.transforms as transforms
 from Pruner import Pruner
@@ -9,7 +10,7 @@ from Pruner import Pruner
 from layers.layers import MaskedConv, MaskedDense
 
 #hyper params
-batch_size = 128
+batch_size = 100
 epochs = 100
 
 transform = transforms.Compose(
@@ -52,17 +53,17 @@ class Net(nn.Module):
     return x
 
 
-net = Net()
+net = resnet20(10)
 net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 pruner = Pruner(
-  net, optimizer, 0, 0.95, total_steps=len(trainloader), ramping=True)
+  net, optimizer, 0, 0.95, total_steps=(batch_size * len(trainloader)), ramping=True)
 
 
 for epoch in range(epochs):  # loop over the dataset multiple times
-  pruner.mask_sparsity()
+  #pruner.mask_sparsity()
   running_loss = 0.0
   for i, data in enumerate(trainloader, 0):
     # get the inputs; data is a list of [inputs, labels]
@@ -80,10 +81,21 @@ for epoch in range(epochs):  # loop over the dataset multiple times
 
     # print statistics
     running_loss += loss.item()
-    if i % 2000 == 1999:  # print every 2000 mini-batches
-      print('[%d, %5d] loss: %.3f' %
-            (epoch + 1, i + 1, running_loss / 2000))
-      running_loss = 0.0
+  print('[%d, %5d] loss: %.3f' %
+        (epoch + 1, i + 1, running_loss / 500))
+  running_loss = 0.0
+  correct = 0
+  total = 0
+  with torch.no_grad():
+    for data in testloader:
+      inputs, labels = data[0].to(device), data[1].to(device)
+      outputs = pruner.model(inputs)
+      _, predicted = torch.max(outputs.data, 1)
+      total += labels.size(0)
+      correct += (predicted == labels).sum().item()
+
+  print('Accuracy of the network on testset: %d %%' % (
+      100 * correct / total))
 
 print('Finished Training')
 
@@ -97,7 +109,7 @@ with torch.no_grad():
     total += labels.size(0)
     correct += (predicted == labels).sum().item()
 
-print('Accuracy of the network on the 10000 test images: %d %%' % (
+print('Accuracy of the network on testset: %d %%' % (
     100 * correct / total))
 
 class_correct = list(0. for i in range(10))
