@@ -1,29 +1,41 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from models.resnet import resnet20
 import torchvision
 import torchvision.transforms as transforms
+
 from Pruner import Pruner
+from models.resnet import resnet20
 
-from layers.layers import MaskedConv, MaskedDense
-
-#hyper params
+# hyper params
 batch_size = 100
-epochs = 100
+epochs = 200
 
-transform = transforms.Compose(
-  [transforms.ToTensor(),
-   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+def get_lr(optimizer):
+  for param_group in optimizer.param_groups:
+    return param_group['lr']
+
+
+transform_train = transforms.Compose([
+  transforms.RandomCrop(32, padding=4),
+  transforms.RandomHorizontalFlip(),
+  transforms.ToTensor(),
+  transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+])
+
+transform_test = transforms.Compose([
+  transforms.ToTensor(),
+  transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                        download=True, transform=transform)
+                                        download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                       download=True, transform=transform)
+                                       download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                          shuffle=False, num_workers=2)
 
@@ -32,38 +44,20 @@ classes = ('plane', 'car', 'bird', 'cat',
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
-class Net(nn.Module):
-  def __init__(self):
-    super(Net, self).__init__()
-    self.conv1 = MaskedConv(3, 6, 5)
-    self.pool = nn.MaxPool2d(2, 2)
-    self.conv2 = MaskedConv(6, 16, 5)
-    self.fc1 = MaskedDense(16 * 5 * 5, 120)
-    self.fc2 = MaskedDense(120, 84)
-    self.fc3 = MaskedDense(84, 10)
-
-  def forward(self, x):
-    x = self.pool(F.relu(self.conv1(x)))
-    x = self.pool(F.relu(self.conv2(x)))
-    x = x.view(-1, 16 * 5 * 5)
-    x = F.relu(self.fc1(x))
-    x = F.relu(self.fc2(x))
-    x = self.fc3(x)
-    return x
-
-
 net = resnet20(10)
 net.to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
+lr_sched = torch.optim.lr_scheduler.CyclicLR(optimizer, 0, 0.1,
+                                             step_size_up=50000, step_size_down=50000)
 pruner = Pruner(
-  net, optimizer, 0, 0.95, total_steps=(batch_size * len(trainloader)), ramping=True)
-
+  net, optimizer, 0, 0.95, lr_scheduler=lr_sched,
+  total_steps=(batch_size * len(trainloader)), ramping=True
+)
 
 for epoch in range(epochs):  # loop over the dataset multiple times
-  #pruner.mask_sparsity()
+  # pruner.mask_sparsity()
   running_loss = 0.0
   for i, data in enumerate(trainloader, 0):
     # get the inputs; data is a list of [inputs, labels]
@@ -76,13 +70,13 @@ for epoch in range(epochs):  # loop over the dataset multiple times
     outputs = pruner.model(inputs)
     loss = criterion(outputs, labels)
     loss.backward()
-    #optimizer.step()
+    # optimizer.step()
     pruner.step()
 
     # print statistics
     running_loss += loss.item()
-  print('[%d, %5d] loss: %.3f' %
-        (epoch + 1, i + 1, running_loss / 500))
+  print('[%d, %5d] loss: %.3f lr: %.3f' %
+        (epoch + 1, i + 1, running_loss / 500, get_lr(pruner.optimizer)))
   running_loss = 0.0
   correct = 0
   total = 0
