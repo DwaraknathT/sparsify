@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 
-from layers.layers import MaskedConv
+from layers.masked_layers import MaskedConv
+from models.registry import register
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -85,26 +86,31 @@ class Wide_ResNet(nn.Module):
     return out
 
 
+@register
 def wide_resnet_28_10(num_classes):
   net = Wide_ResNet(28, 10, 0, num_classes)
   return net
 
 
+@register
 def wide_resnet_16_8(num_classes):
   net = Wide_ResNet(16, 8, 0, num_classes)
   return net
 
 
+@register
 def wide_resnet_16_10(num_classes):
   net = Wide_ResNet(16, 10, 0, num_classes)
   return net
 
 
+@register
 def wide_resnet_40_10(num_classes):
   net = Wide_ResNet(28, 10, 0, num_classes)
   return net
 
 
+@register
 def wide_resnet_28_14(num_classes):
   net = Wide_ResNet(28, 10, 0, num_classes)
   return net

@@ -5,8 +5,10 @@ from torch.nn import init
 from torch.nn.modules import Module
 from torch.nn.modules.utils import _pair
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-class MaskedConv(Module):
+
+class DropConnectConv(Module):
 
   def __init__(self,
                in_channels,
@@ -16,8 +18,10 @@ class MaskedConv(Module):
                padding=0,
                dilation=1,
                groups=1,
+               needs_drop=False,
+               drop_prob=0.2,
                bias=False):
-    super(MaskedConv, self).__init__()
+    super(DropConnectConv, self).__init__()
     self.kernel_size = _pair(kernel_size)
     self.in_channels = in_channels
     self.out_channels = out_channels
@@ -26,6 +30,8 @@ class MaskedConv(Module):
     self.dilation = _pair(dilation)
     self.groups = groups
     self.use_bias = bias
+    self.needs_drop = needs_drop
+    self.drop_prob = drop_prob
     self.floatTensor = (torch.FloatTensor if not torch.cuda.is_available() else
                         torch.cuda.FloatTensor)
     self.weight = nn.Parameter(
@@ -50,22 +56,32 @@ class MaskedConv(Module):
     if self.use_bias:
       init.zeros_(self.bias)
 
+  def reset_mask(self):
+    mask = (torch.empty(list(self.weight.size())).uniform_(0, 1) < self.drop_prob)
+    mask = mask.float().to(device) * (1. - self.drop_prob)
+    self.mask.data = mask
+
   def forward(self, x):
+    self.reset_mask()
     return F.conv2d(x, self.weight * self.mask,
                     self.bias, self.stride, self.padding,
                     self.dilation, self.groups)
 
 
-class MaskedDense(Module):
+class DropConnectDense(Module):
 
   def __init__(self,
                in_dim,
                out_dim,
+               needs_drop=False,
+               drop_prob=0.1,
                bias=False):
-    super(MaskedDense, self).__init__()
+    super(DropConnectDense, self).__init__()
     self.in_dim = in_dim
     self.out_dim = out_dim
     self.use_bias = bias
+    self.needs_drop = needs_drop
+    self.drop_prob = drop_prob
     self.floatTensor = (torch.FloatTensor if not torch.cuda.is_available() else
                         torch.cuda.FloatTensor)
     self.weight = nn.Parameter(
@@ -90,5 +106,11 @@ class MaskedDense(Module):
     if self.use_bias:
       init.zeros_(self.bias)
 
+  def reset_mask(self):
+    mask = (torch.empty(list(self.weight.size())).uniform_(0, 1) < (1. - self.drop_prob))
+    mask = mask.float().to(device)
+    self.mask.data = mask
+
   def forward(self, x):
+    self.reset_mask()
     return F.linear(x, self.weight * self.mask, bias=self.bias)

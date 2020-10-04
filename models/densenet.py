@@ -7,7 +7,7 @@ import torch.utils.checkpoint as cp
 from torch import Tensor
 from torch.jit.annotations import List
 
-from layers.layers import MaskedConv
+from layers.masked_layers import MaskedConv
 
 __all__ = ['DenseNet', 'densenet121', 'densenet169', 'densenet201', 'densenet161']
 

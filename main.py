@@ -4,8 +4,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
-from Pruner import Pruner
-from models.resnet import resnet20
+from models import mcdc_vgg19_bn
 
 # hyper params
 batch_size = 100
@@ -44,17 +43,13 @@ classes = ('plane', 'car', 'bird', 'cat',
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-net = resnet20(10)
+net = mcdc_vgg19_bn(10)
 net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
 lr_sched = torch.optim.lr_scheduler.CyclicLR(optimizer, 0, 0.1,
                                              step_size_up=50000, step_size_down=50000)
-pruner = Pruner(
-  net, optimizer, 0, 0.95, lr_scheduler=lr_sched,
-  total_steps=(batch_size * len(trainloader)), ramping=True
-)
 
 for epoch in range(epochs):  # loop over the dataset multiple times
   # pruner.mask_sparsity()
@@ -65,25 +60,23 @@ for epoch in range(epochs):  # loop over the dataset multiple times
 
     # zero the parameter gradients
     optimizer.zero_grad()
-
+    outputs = net(inputs)
     # forward + backward + optimize
-    outputs = pruner.model(inputs)
     loss = criterion(outputs, labels)
     loss.backward()
-    # optimizer.step()
-    pruner.step()
-
+    optimizer.step()
+    lr_sched.step()
     # print statistics
     running_loss += loss.item()
   print('[%d, %5d] loss: %.3f lr: %.3f' %
-        (epoch + 1, i + 1, running_loss / 500, get_lr(pruner.optimizer)))
+        (epoch + 1, i + 1, running_loss / 500, get_lr(optimizer)))
   running_loss = 0.0
   correct = 0
   total = 0
   with torch.no_grad():
     for data in testloader:
       inputs, labels = data[0].to(device), data[1].to(device)
-      outputs = pruner.model(inputs)
+      outputs = net(inputs)
       _, predicted = torch.max(outputs.data, 1)
       total += labels.size(0)
       correct += (predicted == labels).sum().item()
@@ -98,7 +91,7 @@ total = 0
 with torch.no_grad():
   for data in testloader:
     inputs, labels = data[0].to(device), data[1].to(device)
-    outputs = pruner.model(inputs)
+    outputs = net(inputs)
     _, predicted = torch.max(outputs.data, 1)
     total += labels.size(0)
     correct += (predicted == labels).sum().item()
@@ -111,7 +104,7 @@ class_total = list(0. for i in range(10))
 with torch.no_grad():
   for data in testloader:
     inputs, labels = data[0].to(device), data[1].to(device)
-    outputs = pruner.model(inputs)
+    outputs = net(inputs)
     _, predicted = torch.max(outputs, 1)
     c = (predicted == labels).squeeze()
     for i in range(4):

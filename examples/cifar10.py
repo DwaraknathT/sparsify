@@ -5,7 +5,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
-from layers.layers import MaskedConv, MaskedDense
+from layers.masked_layers import MaskedConv, MaskedDense
 
 transform = transforms.Compose(
   [transforms.ToTensor(),

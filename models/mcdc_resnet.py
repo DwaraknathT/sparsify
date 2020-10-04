@@ -30,17 +30,18 @@ author, Yerlan Idelbayev.
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
-from layers import MaskedConv
 
+from layers import DropConnectConv
 from models.registry import register
 
-__all__ = ['ResNet', 'resnet20', 'resnet32', 'resnet44', 'resnet56', 'resnet110', 'resnet1202']
+__all__ = ['ResNet', 'mcdc_resnet20', 'mcdc_resnet32',
+           'mcdc_resnet44', 'mcdc_resnet56', 'mcdc_resnet110', 'mcdc_resnet1202']
 
 
 def _weights_init(m):
   classname = m.__class__.__name__
   # print(classname)
-  if isinstance(m, nn.Linear) or isinstance(m, MaskedConv):
+  if isinstance(m, nn.Linear) or isinstance(m, DropConnectConv):
     init.xavier_normal_(m.weight)
 
 
@@ -61,16 +62,16 @@ class BasicBlock(nn.Module):
 
   def __init__(self, in_planes, planes, stride=1):
     super(BasicBlock, self).__init__()
-    self.conv1 = MaskedConv(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+    self.conv1 = DropConnectConv(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
     self.bn1 = nn.BatchNorm2d(planes, affine=_AFFINE)
-    self.conv2 = MaskedConv(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+    self.conv2 = DropConnectConv(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
     self.bn2 = nn.BatchNorm2d(planes, affine=_AFFINE)
 
     self.downsample = None
     self.bn3 = None
     if stride != 1 or in_planes != planes:
       self.downsample = nn.Sequential(
-        MaskedConv(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False))
+        DropConnectConv(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False))
       self.bn3 = nn.BatchNorm2d(self.expansion * planes, affine=_AFFINE)
 
   def forward(self, x):
@@ -91,7 +92,7 @@ class ResNet(nn.Module):
     _outputs = [32, 64, 128]
     self.in_planes = _outputs[0]
 
-    self.conv1 = MaskedConv(3, _outputs[0], kernel_size=3, stride=1, padding=1, bias=False)
+    self.conv1 = DropConnectConv(3, _outputs[0], kernel_size=3, stride=1, padding=1, bias=False)
     self.bn = nn.BatchNorm2d(_outputs[0], affine=_AFFINE)
     self.layer1 = self._make_layer(block, _outputs[0], num_blocks[0], stride=1)
     self.layer2 = self._make_layer(block, _outputs[1], num_blocks[1], stride=2)
@@ -121,30 +122,30 @@ class ResNet(nn.Module):
 
 
 @register
-def resnet20(num_classes):
+def mcdc_resnet20(num_classes):
   return ResNet(BasicBlock, [3, 3, 3], num_classes=num_classes)
 
 
 @register
-def resnet32(num_classes):
+def mcdc_resnet32(num_classes):
   return ResNet(BasicBlock, [5, 5, 5], num_classes=num_classes)
 
 
 @register
-def resnet44(num_classes):
+def mcdc_resnet44(num_classes):
   return ResNet(BasicBlock, [7, 7, 7], num_classes=num_classes)
 
 
 @register
-def resnet56(num_classes):
+def mcdc_resnet56(num_classes):
   return ResNet(BasicBlock, [9, 9, 9], num_classes=num_classes)
 
 
 @register
-def resnet110(num_classes):
+def mcdc_resnet110(num_classes):
   return ResNet(BasicBlock, [18, 18, 18], num_classes=num_classes)
 
 
 @register
-def resnet1202(num_classes):
+def mcdc_resnet1202(num_classes):
   return ResNet(BasicBlock, [200, 200, 200], num_clases=num_classes)

@@ -4,13 +4,14 @@ Modified from https://github.com/pytorch/vision.git
 import math
 
 import torch.nn as nn
-from layers import MaskedConv, MaskedDense
 
+from layers import DropConnectDense, DropConnectConv
 from models.registry import register
 
 __all__ = [
-  'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn',
-  'vgg19_bn', 'vgg19',
+  'VGG', 'mcdc_vgg11', 'mcdc_vgg11_bn',
+  'mcdc_vgg13', 'mcdc_vgg13_bn', 'mcdc_vgg16',
+  'mcdc_vgg16_bn', 'mcdc_vgg19_bn', 'mcdc_vgg19',
 ]
 
 
@@ -24,15 +25,15 @@ class VGG(nn.Module):
     self.features = features
     self.num_classes = num_classes
     self.classifier = nn.Sequential(
-      MaskedDense(512, 512),
+      DropConnectDense(512, 512),
       nn.ReLU(True),
-      MaskedDense(512, 512),
+      DropConnectDense(512, 512),
       nn.ReLU(True),
       nn.Linear(512, num_classes),
     )
     # Initialize weights
     for m in self.modules():
-      if isinstance(m, MaskedConv):
+      if isinstance(m, DropConnectConv):
         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
         m.weight.data.normal_(0, math.sqrt(2. / n))
 
@@ -50,7 +51,7 @@ def make_layers(cfg, batch_norm=False):
     if v == 'M':
       layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
     else:
-      conv2d = MaskedConv(in_channels, v, kernel_size=3, padding=1)
+      conv2d = DropConnectConv(in_channels, v, kernel_size=3, padding=1)
       if batch_norm:
         layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
       else:
@@ -69,48 +70,48 @@ cfg = {
 
 
 @register
-def vgg11(num_classes=10):
+def mcdc_vgg11(num_classes=10):
   """VGG 11-layer model (configuration "A")"""
   return VGG(make_layers(cfg['A']), num_classes)
 
 
 @register
-def vgg11_bn(num_classes=10):
+def mcdc_vgg11_bn(num_classes=10):
   """VGG 11-layer model (configuration "A") with batch normalization"""
   return VGG(make_layers(cfg['A'], batch_norm=True), num_classes)
 
 
 @register
-def vgg13(num_classes=10):
+def mcdc_vgg13(num_classes=10):
   """VGG 13-layer model (configuration "B")"""
   return VGG(make_layers(cfg['B']), num_classes)
 
 
 @register
-def vgg13_bn(num_classes=10):
+def mcdc_vgg13_bn(num_classes=10):
   """VGG 13-layer model (configuration "B") with batch normalization"""
   return VGG(make_layers(cfg['B'], batch_norm=True), num_classes)
 
 
 @register
-def vgg16(num_classes=10):
+def mcdc_vgg16(num_classes=10):
   """VGG 16-layer model (configuration "D")"""
   return VGG(make_layers(cfg['D']), num_classes)
 
 
 @register
-def vgg16_bn(num_classes=10):
+def mcdc_vgg16_bn(num_classes=10):
   """VGG 16-layer model (configuration "D") with batch normalization"""
   return VGG(make_layers(cfg['D'], batch_norm=True), num_classes)
 
 
 @register
-def vgg19(num_classes=10):
+def mcdc_vgg19(num_classes=10):
   """VGG 19-layer model (configuration "E")"""
   return VGG(make_layers(cfg['E']), num_classes)
 
 
 @register
-def vgg19_bn(num_classes=10):
+def mcdc_vgg19_bn(num_classes=10):
   """VGG 19-layer model (configuration 'E') with batch normalization"""
   return VGG(make_layers(cfg['E'], batch_norm=True), num_classes)
